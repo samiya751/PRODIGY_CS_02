@@ -1,0 +1,418 @@
+import streamlit as st
+import numpy as np
+from PIL import Image
+import io
+import base64
+from encryption_utils import ImageEncryption
+def main():
+    st.title("🔐 Image Encryption Tool")
+    st.markdown("Upload an image and encrypt/decrypt it using pixel manipulation techniques")
+    
+    # Initialize session state
+    if 'encryption_key' not in st.session_state:
+        st.session_state.encryption_key = 123
+    if 'encrypted_image' not in st.session_state:
+        st.session_state.encrypted_image = None
+    if 'original_image' not in st.session_state:
+        st.session_state.original_image = None
+    
+    # Sidebar for settings
+    st.sidebar.header("Encryption Settings")
+    
+    # Encryption method selection
+    encryption_method = st.sidebar.selectbox(
+        "Select Encryption Method",
+        ["XOR Operation", "Pixel Swapping", "Mathematical Addition"]
+    )
+    
+    # Encryption key input
+    encryption_key = st.sidebar.number_input(
+        "Encryption Key",
+        min_value=1,
+        max_value=255,
+        value=st.session_state.encryption_key,
+        help="Key used for encryption/decryption (1-255)"
+    )
+    st.session_state.encryption_key = encryption_key
+    
+    # Main content area
+    tab1, tab2 = st.tabs(["🔒 Encrypt Image", "🔓 Decrypt Image"])
+    
+    with tab1:
+        st.header("Encrypt Image")
+        
+        # File uploader
+        uploaded_file = st.file_uploader(
+            "Choose an image file",
+            type=['png', 'jpg', 'jpeg'],
+            key="encrypt_upload"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                # Load and display original image
+                original_image = Image.open(uploaded_file)
+                st.session_state.original_image = original_image
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("Original Image")
+                    st.image(original_image, caption="Original Image", use_column_width=True)
+                    st.write(f"Size: {original_image.size}")
+                    st.write(f"Mode: {original_image.mode}")
+                
+                # Encrypt button
+                if st.button("🔒 Encrypt Image", type="primary"):
+                    with st.spinner("Encrypting image..."):
+                        try:
+                            # Initialize encryption utility
+                            encryptor = ImageEncryption()
+                            
+                            # Convert to RGB if necessary
+                            if original_image.mode != 'RGB':
+                                original_image = original_image.convert('RGB')
+                            
+                            # Encrypt based on selected method
+                            if encryption_method == "XOR Operation":
+                                encrypted_array = encryptor.xor_encrypt(original_image, encryption_key)
+                            elif encryption_method == "Pixel Swapping":
+                                encrypted_array = encryptor.pixel_swap_encrypt(original_image, encryption_key)
+                            else:  # Mathematical Addition
+                                encrypted_array = encryptor.math_encrypt(original_image, encryption_key)
+                            
+                            # Convert back to image
+                            encrypted_image = Image.fromarray(encrypted_array.astype('uint8'), 'RGB')
+                            st.session_state.encrypted_image = encrypted_image
+                            
+                            with col2:
+                                st.subheader("Encrypted Image")
+                                st.image(encrypted_image, caption="Encrypted Image", use_column_width=True)
+                                
+                                # Download button for encrypted image
+                                buf = io.BytesIO()
+                                encrypted_image.save(buf, format='PNG')
+                                byte_im = buf.getvalue()
+                                
+                                st.download_button(
+                                    label="📥 Download Encrypted Image",
+                                    data=byte_im,
+                                    file_name="encrypted_image.png",
+                                    mime="image/png"
+                                )
+                            
+                            st.success("Image encrypted successfully!")
+                            st.info(f"Method used: {encryption_method} with key: {encryption_key}")
+                            
+                        except Exception as e:
+                            st.error(f"Encryption failed: {str(e)}")
+                            
+            except Exception as e:
+                st.error(f"Error loading image: {str(e)}")
+    
+    with tab2:
+        st.header("Decrypt Image")
+        
+        # File uploader for encrypted image
+        encrypted_file = st.file_uploader(
+            "Choose an encrypted image file",
+            type=['png', 'jpg', 'jpeg'],
+            key="decrypt_upload"
+        )
+        
+        if encrypted_file is not None:
+            try:
+                # Load encrypted image
+                encrypted_image = Image.open(encrypted_file)
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("Encrypted Image")
+                    st.image(encrypted_image, caption="Encrypted Image", use_column_width=True)
+                    st.write(f"Size: {encrypted_image.size}")
+                    st.write(f"Mode: {encrypted_image.mode}")
+                
+                # Decrypt button
+                if st.button("🔓 Decrypt Image", type="primary"):
+                    with st.spinner("Decrypting image..."):
+                        try:
+                            # Initialize encryption utility
+                            encryptor = ImageEncryption()
+                            
+                            # Convert to RGB if necessary
+                            if encrypted_image.mode != 'RGB':
+                                encrypted_image = encrypted_image.convert('RGB')
+                            
+                            # Decrypt based on selected method
+                            if encryption_method == "XOR Operation":
+                                decrypted_array = encryptor.xor_decrypt(encrypted_image, encryption_key)
+                            elif encryption_method == "Pixel Swapping":
+                                decrypted_array = encryptor.pixel_swap_decrypt(encrypted_image, encryption_key)
+                            else:  # Mathematical Addition
+                                decrypted_array = encryptor.math_decrypt(encrypted_image, encryption_key)
+                            
+                            # Convert back to image
+                            decrypted_image = Image.fromarray(decrypted_array.astype('uint8'), 'RGB')
+                            
+                            with col2:
+                                st.subheader("Decrypted Image")
+                                st.image(decrypted_image, caption="Decrypted Image", use_column_width=True)
+                                
+                                # Download button for decrypted image
+                                buf = io.BytesIO()
+                                decrypted_image.save(buf, format='PNG')
+                                byte_im = buf.getvalue()
+                                
+                                st.download_button(
+                                    label="📥 Download Decrypted Image",
+                                    data=byte_im,
+                                    file_name="decrypted_image.png",
+                                    mime="image/png"
+                                )
+                            
+                            st.success("Image decrypted successfully!")
+                            st.info(f"Method used: {encryption_method} with key: {encryption_key}")
+                            
+                        except Exception as e:
+                            st.error(f"Decryption failed: {str(e)}. Please check if the key and method are correct.")
+                            
+            except Exception as e:
+                st.error(f"Error loading encrypted image: {str(e)}")
+    
+    # Information section
+    with st.expander("ℹ️ How it works"):
+        st.markdown("""
+        ### Encryption Methods:
+        
+        **XOR Operation**: Each pixel value is XORed with the encryption key. XOR is reversible - applying it twice returns the original value.
+        
+        **Pixel Swapping**: Pixels are rearranged based on a pattern derived from the encryption key. The pattern is reversed during decryption.
+        
+        **Mathematical Addition**: A mathematical operation (addition with modulo) is applied to each pixel value using the encryption key.
+        
+        ### Important Notes:
+        - Use the same encryption method and key for decryption
+        - Keep your encryption key safe - it's required for decryption
+        - Supported formats: PNG, JPG, JPEG
+        - Images are converted to RGB format for processing
+        """)
+if __name__ == "__main__":
+    main()
+File 2: encryption_utils.py (Encryption Logic)
+import numpy as np
+from PIL import Image
+import random
+class ImageEncryption:
+    """
+    A class containing various image encryption and decryption methods
+    using pixel manipulation techniques.
+    """
+    
+    def xor_encrypt(self, image, key):
+        """
+        Encrypt image using XOR operation on pixel values.
+        
+        Args:
+            image (PIL.Image): Input image
+            key (int): Encryption key (0-255)
+            
+        Returns:
+            numpy.ndarray: Encrypted image array
+        """
+        # Convert image to numpy array
+        img_array = np.array(image)
+        
+        # Apply XOR operation to all pixel values
+        encrypted_array = img_array ^ key
+        
+        return encrypted_array
+    
+    def xor_decrypt(self, encrypted_image, key):
+        """
+        Decrypt image using XOR operation (same as encryption for XOR).
+        
+        Args:
+            encrypted_image (PIL.Image): Encrypted image
+            key (int): Decryption key (same as encryption key)
+            
+        Returns:
+            numpy.ndarray: Decrypted image array
+        """
+        # XOR is its own inverse, so decryption is the same as encryption
+        return self.xor_encrypt(encrypted_image, key)
+    
+    def pixel_swap_encrypt(self, image, key):
+        """
+        Encrypt image by swapping pixels based on a key-derived pattern.
+        
+        Args:
+            image (PIL.Image): Input image
+            key (int): Encryption key
+            
+        Returns:
+            numpy.ndarray: Encrypted image array
+        """
+        # Convert image to numpy array
+        img_array = np.array(image)
+        height, width, channels = img_array.shape
+        
+        # Create a copy for manipulation
+        encrypted_array = img_array.copy()
+        
+        # Set random seed based on key for reproducible shuffling
+        random.seed(key)
+        np.random.seed(key)
+        
+        # Flatten the array for easier manipulation
+        flat_array = encrypted_array.reshape(-1, channels)
+        
+        # Create a shuffling pattern based on the key
+        indices = np.arange(len(flat_array))
+        np.random.shuffle(indices)
+        
+        # Apply the shuffling
+        shuffled_array = flat_array[indices]
+        
+        # Reshape back to original dimensions
+        encrypted_array = shuffled_array.reshape(height, width, channels)
+        
+        return encrypted_array
+    
+    def pixel_swap_decrypt(self, encrypted_image, key):
+        """
+        Decrypt image by reversing the pixel swapping pattern.
+        
+        Args:
+            encrypted_image (PIL.Image): Encrypted image
+            key (int): Decryption key (same as encryption key)
+            
+        Returns:
+            numpy.ndarray: Decrypted image array
+        """
+        # Convert image to numpy array
+        img_array = np.array(encrypted_image)
+        height, width, channels = img_array.shape
+        
+        # Set random seed based on key to reproduce the same pattern
+        random.seed(key)
+        np.random.seed(key)
+        
+        # Flatten the array
+        flat_array = img_array.reshape(-1, channels)
+        
+        # Recreate the same shuffling pattern
+        indices = np.arange(len(flat_array))
+        np.random.shuffle(indices)
+        
+        # Create reverse mapping
+        reverse_indices = np.argsort(indices)
+        
+        # Apply reverse shuffling
+        decrypted_flat = flat_array[reverse_indices]
+        
+        # Reshape back to original dimensions
+        decrypted_array = decrypted_flat.reshape(height, width, channels)
+        
+        return decrypted_array
+    
+    def math_encrypt(self, image, key):
+        """
+        Encrypt image using mathematical operations on pixel values.
+        
+        Args:
+            image (PIL.Image): Input image
+            key (int): Encryption key
+            
+        Returns:
+            numpy.ndarray: Encrypted image array
+        """
+        # Convert image to numpy array
+        img_array = np.array(image, dtype=np.int16)  # Use int16 to prevent overflow
+        
+        # Apply mathematical operation: (pixel + key) mod 256
+        encrypted_array = (img_array + key) % 256
+        
+        return encrypted_array.astype(np.uint8)
+    
+    def math_decrypt(self, encrypted_image, key):
+        """
+        Decrypt image by reversing the mathematical operation.
+        
+        Args:
+            encrypted_image (PIL.Image): Encrypted image
+            key (int): Decryption key (same as encryption key)
+            
+        Returns:
+            numpy.ndarray: Decrypted image array
+        """
+        # Convert image to numpy array
+        img_array = np.array(encrypted_image, dtype=np.int16)
+        
+        # Reverse the mathematical operation: (pixel - key) mod 256
+        decrypted_array = (img_array - key) % 256
+        
+        return decrypted_array.astype(np.uint8)
+    
+    def advanced_pixel_encrypt(self, image, key):
+        """
+        Advanced encryption combining multiple techniques.
+        
+        Args:
+            image (PIL.Image): Input image
+            key (int): Encryption key
+            
+        Returns:
+            numpy.ndarray: Encrypted image array
+        """
+        # Convert image to numpy array
+        img_array = np.array(image)
+        
+        # Step 1: Apply XOR
+        step1 = img_array ^ (key % 256)
+        
+        # Step 2: Apply mathematical operation
+        step2 = (step1 + key) % 256
+        
+        # Step 3: Bit shifting for additional obfuscation
+        encrypted_array = np.roll(step2, key % 8, axis=1)  # Shift columns
+        encrypted_array = np.roll(encrypted_array, key % 4, axis=0)  # Shift rows
+        
+        return encrypted_array.astype(np.uint8)
+    
+    def advanced_pixel_decrypt(self, encrypted_image, key):
+        """
+        Decrypt image encrypted with advanced method.
+        
+        Args:
+            encrypted_image (PIL.Image): Encrypted image
+            key (int): Decryption key
+            
+        Returns:
+            numpy.ndarray: Decrypted image array
+        """
+        # Convert image to numpy array
+        img_array = np.array(encrypted_image, dtype=np.int16)
+        
+        # Reverse Step 3: Reverse bit shifting
+        step1 = np.roll(img_array, -(key % 4), axis=0)  # Reverse row shift
+        step1 = np.roll(step1, -(key % 8), axis=1)  # Reverse column shift
+        
+        # Reverse Step 2: Reverse mathematical operation
+        step2 = (step1 - key) % 256
+        
+        # Reverse Step 1: Apply XOR (XOR is its own inverse)
+        decrypted_array = step2 ^ (key % 256)
+        
+        return decrypted_array.astype(np.uint8)
+File 3: .streamlit/config.toml (Configuration)
+Create a folder called .streamlit and inside it create config.toml:
+
+[server]
+headless = true
+address = "0.0.0.0"
+port = 5000
+File 4: requirements.txt (Dependencies)
+streamlit
+numpy
+pillow
